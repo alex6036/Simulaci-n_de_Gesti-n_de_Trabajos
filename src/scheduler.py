@@ -12,7 +12,9 @@ class Scheduler(ABC):
     def planificar(self, procesos: List[Proceso]) -> List[GanttEntry]:
         """Planifica la ejecución de los procesos y devuelve el diagrama de Gantt."""
         pass
-# src/scheduler.py (continuación)
+
+
+# src/scheduler.py (actualización)
 
 class FCFSScheduler(Scheduler):
     def planificar(self, procesos: List[Proceso]) -> List[GanttEntry]:
@@ -28,7 +30,7 @@ class FCFSScheduler(Scheduler):
             tiempo_actual = tiempo_fin
 
         return gantt
-# src/scheduler.py (continuación)
+
 
 class RoundRobinScheduler(Scheduler):
     def __init__(self, quantum: int):
