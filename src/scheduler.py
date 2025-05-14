@@ -1,70 +1,118 @@
-# src/scheduler.py
-
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 from src.proceso import Proceso
 
-# GanttEntry: (pid, tiempo_inicio, tiempo_fin)
-GanttEntry = Tuple[str, int, int]
+# Definición de GanttEntry como una tupla
+GanttEntry = Tuple[str, int, int]  # (pid, tiempo_inicio, tiempo_fin)
 
 class Scheduler(ABC):
+    """Clase abstracta que define la interfaz de un planificador."""
+    
     @abstractmethod
     def planificar(self, procesos: List[Proceso]) -> List[GanttEntry]:
-        """Planifica la ejecución de los procesos y devuelve el diagrama de Gantt."""
+        """
+        Planifica los procesos y devuelve un diagrama de Gantt.
+        
+        Args:
+            procesos: Lista de procesos a planificar.
+            
+        Returns:
+            Lista de entradas GanttEntry (pid, tiempo_inicio, tiempo_fin).
+        """
         pass
 
-
-# src/scheduler.py (actualización)
-
 class FCFSScheduler(Scheduler):
+    """Planificador First-Come, First-Served (FCFS)."""
+    
     def planificar(self, procesos: List[Proceso]) -> List[GanttEntry]:
-        gantt = []
+        """
+        Planifica procesos en orden de llegada.
+        
+        Args:
+            procesos: Lista de procesos a planificar.
+            
+        Returns:
+            Lista de entradas GanttEntry.
+            
+        Raises:
+            ValueError: Si la lista de procesos es inválida.
+        """
+        if not procesos or not all(isinstance(p, Proceso) for p in procesos):
+            raise ValueError("Se requiere una lista no vacía de instancias de Proceso")
+
+        gantt: List[GanttEntry] = []
         tiempo_actual = 0
 
         for proceso in procesos:
-            proceso.tiempo_inicio = tiempo_actual
-            tiempo_fin = tiempo_actual + proceso.duracion
-            proceso.tiempo_fin = tiempo_fin
-
+            # Establecer tiempo de inicio
+            proceso.establecer_tiempo_inicio(tiempo_actual)
+            # El proceso se ejecuta completamente
+            tiempo_actual += proceso.duracion
+            # Establecer tiempo de fin
+            proceso.establecer_tiempo_fin(tiempo_actual)
+            # Reducir tiempo restante a 0
+            proceso.reducir_tiempo_restante(proceso.tiempo_restante)
+            # Agregar entrada al diagrama de Gantt
             gantt.append((proceso.pid, proceso.tiempo_inicio, proceso.tiempo_fin))
-            tiempo_actual = tiempo_fin
 
         return gantt
 
-
 class RoundRobinScheduler(Scheduler):
+    """Planificador Round-Robin con quantum configurable."""
+    
     def __init__(self, quantum: int):
-        if quantum <= 0:
-            raise ValueError("El quantum debe ser mayor que cero.")
+        """
+        Inicializa el planificador con un quantum específico.
+        
+        Args:
+            quantum: Tiempo máximo de ejecución por ciclo.
+            
+        Raises:
+            ValueError: Si el quantum no es positivo.
+        """
+        if not isinstance(quantum, int) or quantum <= 0:
+            raise ValueError("El quantum debe ser un entero positivo")
         self.quantum = quantum
 
     def planificar(self, procesos: List[Proceso]) -> List[GanttEntry]:
-        gantt = []
+        """
+        Planifica procesos usando Round-Robin.
+        
+        Args:
+            procesos: Lista de procesos a planificar.
+            
+        Returns:
+            Lista de entradas GanttEntry.
+            
+        Raises:
+            ValueError: Si la lista de procesos es inválida.
+        """
+        if not procesos or not all(isinstance(p, Proceso) for p in procesos):
+            raise ValueError("Se requiere una lista no vacía de instancias de Proceso")
+
+        gantt: List[GanttEntry] = []
         tiempo_actual = 0
-        cola = procesos.copy()
+        cola = procesos.copy()  # Copia de la lista para no modificar la original
+        procesos_pendientes = len(cola)
 
-        # Inicializamos los tiempos
-        for p in cola:
-            p.tiempo_restante = p.duracion
-            p.tiempo_inicio = None
-
-        while cola:
-            proceso = cola.pop(0)
-
+        while procesos_pendientes > 0:
+            proceso = cola.pop(0)  # Tomar el primer proceso de la cola
             if proceso.tiempo_inicio is None:
-                proceso.tiempo_inicio = tiempo_actual
+                proceso.establecer_tiempo_inicio(tiempo_actual)
 
-            ejecucion = min(self.quantum, proceso.tiempo_restante)
+            # Determinar cuánto tiempo ejecutar
+            tiempo_ejecucion = min(self.quantum, proceso.tiempo_restante)
             tiempo_inicio = tiempo_actual
-            tiempo_actual += ejecucion
-            tiempo_fin = tiempo_actual
-            proceso.tiempo_restante -= ejecucion
+            tiempo_actual += tiempo_ejecucion
+            proceso.reducir_tiempo_restante(tiempo_ejecucion)
 
-            gantt.append((proceso.pid, tiempo_inicio, tiempo_fin))
+            # Agregar entrada al diagrama de Gantt
+            gantt.append((proceso.pid, tiempo_inicio, tiempo_actual))
 
             if proceso.tiempo_restante > 0:
+                # El proceso no ha terminado, vuelve a la cola
                 cola.append(proceso)
             else:
-                proceso.tiempo_fin = tiempo_actual
-
-        return gantt
+                # El proceso ha terminado, establecer tiempo de fin
+                proceso.establecer_tiempo_fin(tiempo_actual)
+                procesos
