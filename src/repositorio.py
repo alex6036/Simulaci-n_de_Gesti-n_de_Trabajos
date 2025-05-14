@@ -28,3 +28,35 @@ class RepositorioProcesos:
 
     def limpiar(self):
         self.procesos.clear()
+
+
+# src/repositorio.py (continuación)
+
+    def guardar_json(self, ruta: str):
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump([p.to_dict() for p in self.procesos], f, indent=4)
+
+    def cargar_json(self, ruta: str):
+        from src.proceso import Proceso
+        with open(ruta, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+        self.procesos.clear()
+        Proceso.reset_registro()
+        for d in datos:
+            self.agregar(Proceso.from_dict(d))
+
+    def guardar_csv(self, ruta: str):
+        with open(ruta, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(["pid", "duracion", "prioridad"])
+            for p in self.procesos:
+                writer.writerow([p.pid, p.duracion, p.prioridad])
+
+    def cargar_csv(self, ruta: str):
+        from src.proceso import Proceso
+        with open(ruta, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            self.procesos.clear()
+            Proceso.reset_registro()
+            for row in reader:
+                self.agregar(Proceso.from_dict(row))
