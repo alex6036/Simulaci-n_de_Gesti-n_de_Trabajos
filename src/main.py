@@ -1,76 +1,127 @@
 from src.proceso import Proceso
 from src.repositorio import RepositorioProcesos
 from src.scheduler import FCFSScheduler, RoundRobinScheduler
-import gradio as gr
+from src.metrics import Metrics
 
-# Instancia global del repositorio
-repositorio = RepositorioProcesos()
+def print_menu():
+    """Prints the interactive menu."""
+    print("\n=== Scheduler CLI ===")
+    print("1. Agregar proceso")
+    print("2. Listar procesos")
+    print("3. Planificar procesos")
+    print("4. Mostrar métricas")
+    print("5. Guardar procesos")
+    print("6. Cargar procesos")
+    print("7. Salir")
 
-# ---------- Funciones de la interfaz ----------
+def main():
+    """Main function for the interactive CLI."""
+    repositorio = RepositorioProcesos()
+    gantt = None  # Store Gantt diagram for metrics
 
-def agregar_proceso(pid: str, duracion: int, prioridad: int):
-    try:
-        proceso = Proceso(pid, duracion, prioridad)
-        repositorio.agregar(proceso)
-        return f"✅ Proceso '{pid}' agregado correctamente", listar_procesos()
-    except Exception as e:
-        return f"❌ Error: {str(e)}", listar_procesos()
+    while True:
+        print_menu()
+        opcion = input("Seleccione una opción (1-7): ")
 
-def listar_procesos():
-    procesos = repositorio.listar()
-    return [
-        [p.pid, p.duracion, p.prioridad, p.tiempo_restante]
-        for p in procesos
-    ]
+        if opcion == "1":
+            # Agregar proceso
+            try:
+                pid = input("Ingrese PID: ")
+                duracion = int(input("Ingrese duración: "))
+                prioridad = int(input("Ingrese prioridad: "))
+                proceso = Proceso(pid, duracion, prioridad)
+                repositorio.agregar(proceso)
+                print(f"Proceso {pid} agregado exitosamente.")
+            except ValueError as e:
+                print(f"Error: {e}")
 
-def planificar_fcfs():
-    procesos = repositorio.listar()
-    if not procesos:
-        return [["(sin procesos)", 0, 0]]
-    planificador = FCFSScheduler()
-    gantt = planificador.planificar(procesos)
-    return gantt
+        elif opcion == "2":
+            # Listar procesos
+            procesos = repositorio.listar()
+            if not procesos:
+                print("No hay procesos registrados.")
+            else:
+                print("Procesos registrados:")
+                for proceso in procesos:
+                    print(f"  {proceso}")
 
-def planificar_rr(quantum: int):
-    procesos = repositorio.listar()
-    if not procesos:
-        return [["(sin procesos)", 0, 0]]
-    planificador = RoundRobinScheduler(quantum)
-    gantt = planificador.planificar(procesos)
-    return gantt
+        elif opcion == "3":
+            # Planificar procesos
+            procesos = repositorio.listar()
+            if not procesos:
+                print("No hay procesos para planificar.")
+                continue
 
-# ---------- Interfaz Gradio ----------
+            algoritmo = input("Seleccione algoritmo (fcfs/rr): ").lower()
+            try:
+                if algoritmo == "fcfs":
+                    scheduler = FCFSScheduler()
+                elif algoritmo == "rr":
+                    quantum = int(input("Ingrese quantum: "))
+                    scheduler = RoundRobinScheduler(quantum)
+                else:
+                    print("Algoritmo no válido. Use 'fcfs' o 'rr'.")
+                    continue
 
-with gr.Blocks(title="Planificador de Procesos") as demo:
-    gr.Markdown("# ⚙️ Simulador de Planificación de Procesos")
+                gantt = scheduler.planificar(procesos)
+                print("Diagrama de Gantt:")
+                for entry in gantt:
+                    print(f"  {entry[0]}: {entry[1]} -> {entry[2]}")
+            except ValueError as e:
+                print(f"Error: {e}")
 
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown("### ➕ Agregar Proceso")
-            pid = gr.Text(label="PID")
-            duracion = gr.Number(label="Duración", precision=0)
-            prioridad = gr.Number(label="Prioridad", precision=0)
-            agregar_btn = gr.Button("Agregar")
-            estado = gr.Textbox(label="Estado")
+        elif opcion == "4":
+            # Mostrar métricas
+            procesos = repositorio.listar()
+            if not procesos or not gantt:
+                print("Primero debes planificar los procesos.")
+                continue
+            try:
+                metrics = Metrics(procesos, gantt)
+                print(metrics)
+            except ValueError as e:
+                print(f"Error: {e}")
 
-        with gr.Column():
-            gr.Markdown("### 📋 Procesos Actuales")
-            tabla_procesos = gr.Dataframe(headers=["PID", "Duración", "Prioridad", "Tiempo Restante"], interactive=False)
+        elif opcion == "5":
+            # Guardar procesos
+            formato = input("Seleccione formato (json/csv): ").lower()
+            archivo = input("Ingrese nombre del archivo: ")
+            try:
+                if formato == "json":
+                    repositorio.guardar_json(archivo)
+                elif formato == "csv":
+                    repositorio.guardar_csv(archivo)
+                else:
+                    print("Formato no válido. Use 'json' o 'csv'.")
+                    continue
+                print(f"Procesos guardados en {archivo} ({formato}).")
+            except (ValueError, IOError) as e:
+                print(f"Error: {e}")
 
-    agregar_btn.click(fn=agregar_proceso, inputs=[pid, duracion, prioridad], outputs=[estado, tabla_procesos])
+        elif opcion == "6":
+            # Cargar procesos
+            formato = input("Seleccione formato (json/csv): ").lower()
+            archivo = input("Ingrese nombre del archivo: ")
+            try:
+                if formato == "json":
+                    repositorio.cargar_json(archivo)
+                elif formato == "csv":
+                    repositorio.cargar_csv(archivo)
+                else:
+                    print("Formato no válido. Use 'json' o 'csv'.")
+                    continue
+                print(f"Procesos cargados desde {archivo} ({formato}).")
+                gantt = None  # Reset Gantt after loading new processes
+            except (ValueError, IOError) as e:
+                print(f"Error: {e}")
 
-    with gr.Row():
-        gr.Markdown("## 📊 Planificación")
+        elif opcion == "7":
+            # Salir
+            print("Saliendo del programa.")
+            break
 
-    with gr.Row():
-        btn_fcfs = gr.Button("Planificar FCFS")
-        btn_rr = gr.Button("Planificar Round-Robin")
-        quantum = gr.Number(label="Quantum RR", value=2, precision=0)
-
-    tabla_gantt = gr.Dataframe(headers=["PID", "Inicio", "Fin"], interactive=False)
-
-    btn_fcfs.click(fn=planificar_fcfs, inputs=[], outputs=tabla_gantt)
-    btn_rr.click(fn=planificar_rr, inputs=[quantum], outputs=tabla_gantt)
+        else:
+            print("Opción no válida. Por favor, seleccione un número entre 1 y 7.")
 
 if __name__ == "__main__":
-    demo.launch()
+    main()
